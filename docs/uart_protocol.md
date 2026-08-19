@@ -2,17 +2,19 @@
 
 ## Общие правила
 
-- Интерфейс: STM32 USART1 ↔ ESP32 UART2, **115200** baud, 8N1.
+- Интерфейс: STM32 USART1 (PA9/PA10) ↔ ESP32 UART2 (GPIO16/GPIO17), **115200** baud, 8N1.
 - Формат: одна JSON-строка на сообщение, завершается `\n` (0x0A).
 - Кодировка: ASCII.
 - Максимальная длина строки: 256 байт.
+
+ESP32 использует телеметрию STM32 для **LCD 1602**.
 
 ## STM32 → ESP32 (телеметрия)
 
 Каждые 5 s или при смене уровня тревоги.
 
 ```json
-{"co2":845,"temp":23.1,"rh":45,"alert":1,"quiet":false}
+{"co2":845,"temp":23.1,"rh":45,"alert":1,"quiet":false,"time":"22:15"}
 ```
 
 | Поле | Тип | Описание |
@@ -21,62 +23,71 @@
 | `temp` | float | Температура, °C |
 | `rh` | int | Относительная влажность, % |
 | `alert` | int | 0 = normal, 1 = warning, 2 = alarm |
-| `quiet` | bool | Тихие часы активны на STM32 |
+| `quiet` | bool | Тихие часы или mute — звук выключен |
+| `time` | string | Локальное время HH:MM с DS3231 |
 
-## ESP32 → STM32 (время и настройки)
+## ESP32 → STM32 (время, настройки, команды с веба)
 
-При старте, при изменении настроек, раз в 60 s.
+При старте, при изменении настроек, раз в 60 s; команды — сразу.
 
 ```json
-{"time":"22:15","quiet":true,"co2_warn":800,"co2_crit":1200,"quiet_start":22,"quiet_end":7,"epoch":1719320000}
+{"co2_warn":800,"co2_crit":1200,"quiet_start":22,"quiet_end":7,"epoch":1719320000}
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `time` | string | Локальное время HH:MM |
-| `quiet` | bool | Звук запрещён |
 | `co2_warn` | int | Порог warning, ppm |
 | `co2_crit` | int | Порог alarm, ppm |
-| `quiet_start` | int | Час начала (0–23) |
+| `quiet_start` | int | Час начала тихих часов (0–23) |
 | `quiet_end` | int | Час конца (0–23) |
 | `epoch` | int | Unix time для DS3231 |
 
-### Расчёт quiet (через полночь, 22–07)
+### Расчёт quiet (через полночь, 22–07) — на STM32 по DS3231
 
 ```
 quiet = (hour >= quiet_start) OR (hour < quiet_end)
 ```
 
-## Команды ESP32 → STM32
+## Команды ESP32 → STM32 (с HTML)
 
 ```json
 {"cmd":"beep"}
+{"cmd":"mute","minutes":60}
+{"cmd":"unmute"}
+{"cmd":"set_alerts","enabled":true}
 {"cmd":"set_time","epoch":1719320000}
+{"cmd":"frc_calibrate"}
 ```
 
 | cmd | Действие |
 |-----|----------|
-| `beep` | Тест KY-006, 1 s, игнор quiet |
-| `set_time` | Запись epoch в DS3231 |
+| `beep` | Тест KY-006, 1 s, игнор quiet/mute |
+| `mute` | Звук off на N минут |
+| `unmute` | Снять mute |
+| `set_alerts` | Вкл/выкл звуковых тревог |
+| `set_time` | Запись epoch в DS3231 (I2C2) |
+| `frc_calibrate` | Forced Recalibration SCD41 (400 ppm) |
 
 ## Инициализация
 
-1. STM32: I2C, SCD41, LCD, DS3231, KY-006.
-2. ESP32: WiFi, NTP.
+1. STM32: I2C1 SCD41, I2C2 DS3231, PWM PA2, UART.
+2. ESP32: I2C LCD, WiFi, NTP.
 3. ESP32 → `set_time` → STM32 → DS3231.
 4. ESP32 → настройки порогов и quiet hours.
-5. STM32 → телеметрия каждые 5 s.
+5. STM32 → телеметрия каждые 5 s; ESP32 обновляет LCD и веб.
 
 ## Ошибки
 
 - Битый JSON — пакет игнорируется.
-- Нет UART от ESP32 &gt; 120 s — STM32 использует DS3231 + настройки из flash.
+- Нет UART от STM32 &gt; 10 s — LCD: `NO STM32 LINK`.
+- Нет UART от ESP32 &gt; 120 s — STM32: DS3231 + настройки из flash; звук по тихим часам работает.
 
 ## Примеры
 
 ```
-STM32: {"co2":420,"temp":22.0,"rh":48,"alert":0,"quiet":false}
-ESP:   {"time":"14:30","quiet":false,"co2_warn":800,"co2_crit":1200,"quiet_start":22,"quiet_end":7,"epoch":1719320000}
+STM32: {"co2":420,"temp":22.0,"rh":48,"alert":0,"quiet":false,"time":"14:30"}
+ESP:   {"co2_warn":800,"co2_crit":1200,"quiet_start":22,"quiet_end":7,"epoch":1719320000}
 ESP:   {"cmd":"beep"}
-STM32: {"co2":1350,"temp":24.1,"rh":52,"alert":2,"quiet":true}
+ESP:   {"cmd":"mute","minutes":60}
+STM32: {"co2":1350,"temp":24.1,"rh":52,"alert":2,"quiet":true,"time":"22:15"}
 ```
