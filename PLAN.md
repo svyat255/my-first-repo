@@ -220,8 +220,8 @@ LCD обновляется из телеметрии UART. Без ESP32 дисп
 ### 5. UART STM32 ↔ ESP32
 
 ```
-  STM32 PA9  (USART1_TX) ──────────────► ESP32 GPIO16 (RX2)
-  STM32 PA10 (USART1_RX) ◄──────────────  ESP32 GPIO17 (TX2)
+  STM32 PA9  (USART1_TX) ──────────────► ESP32 GPIO16 или GPIO25 (RX)
+  STM32 PA10 (USART1_RX) ◄──────────────  ESP32 GPIO17 или GPIO26 (TX)
   GND ─────────────────────────────────── GND
 ```
 
@@ -264,8 +264,8 @@ LCD обновляется из телеметрии UART. Без ESP32 дисп
 
 ```
 PA2  — KY-006 SIG (TIM2_CH3 PWM)
-PA9  — USART1 TX → ESP32 GPIO16
-PA10 — USART1 RX ← ESP32 GPIO17
+PA9  — USART1 TX → ESP32 GPIO16 или GPIO25
+PA10 — USART1 RX ← ESP32 GPIO17 или GPIO26
 PB6  — I2C1 SCL  → SCD41
 PB7  — I2C1 SDA  → SCD41
 PB10 — I2C2 SCL  → DS3231
@@ -275,8 +275,10 @@ PB11 — I2C2 SDA  → DS3231
 **ESP32 DevKit**
 
 ```
-GPIO16 — UART RX2 ← STM32 PA9
+GPIO16 — UART RX2 ← STM32 PA9 (на WROVER не использовать)
 GPIO17 — UART TX2 → STM32 PA10
+GPIO25 — запасной UART RX ← STM32 PA9
+GPIO26 — запасной UART TX → STM32 PA10
 GPIO21 — I2C SDA  → LCD 1602
 GPIO22 — I2C SCL  → LCD 1602
 3V3 / GND — общая шина питания
@@ -295,7 +297,7 @@ GPIO22 — I2C SCL  → LCD 1602
   STM32 PB10 / PB11 ════ I2C2 ════ DS3231
   ESP32 GPIO21 / 22 ════ I2C  ════ LCD 1602 (PCF8574)
 
-  STM32 PA9 / PA10  ←── UART 115200 ──→ ESP32 GPIO16 / GPIO17
+  STM32 PA9 / PA10  ←── UART 115200 ──→ ESP32 GPIO16/17 или GPIO25/26
 
   STM32 PA2 ──[100Ω]── KY-006(S)     KY-006(+)── +3V3    KY-006(-)── GND
 ```
@@ -405,31 +407,18 @@ stateDiagram-v2
 
 ```
 CO2 sensor/
-├── stm32/
-│   ├── src/
-│   │   ├── main.c
-│   │   ├── scd41.c
-│   │   ├── rtc_ds3231.c
-│   │   ├── buzzer.c
-│   │   ├── alert_fsm.c
-│   │   ├── quiet_hours.c
-│   │   └── esp_link.c
-│   └── platformio.ini
-├── esp32/
-│   ├── src/
-│   │   ├── main.cpp
-│   │   ├── lcd_i2c.cpp
-│   │   ├── web_server.cpp
-│   │   ├── ntp_sync.cpp
-│   │   ├── uart_bridge.cpp
-│   │   └── ota.cpp
-│   └── platformio.ini
+├── stm32_cube/co2_stm32/     CubeIDE: Core/ прикладной код, Drivers/ HAL
+├── esp32/                    PlatformIO: src/ + include/
 ├── docs/
+│   ├── code/                 документация прошивок
 │   ├── wiring.md
-│   └── uart_protocol.md
+│   ├── uart_protocol.md
+│   └── cubemx.md
 ├── PLAN.md
 └── README.md
 ```
+
+Разбор файлов: [`docs/code/README.md`](docs/code/README.md).
 
 ---
 
@@ -464,4 +453,6 @@ CO2 sensor/
 |------|----------|
 | [`docs/wiring.md`](docs/wiring.md) | Монтаж и проверка |
 | [`docs/uart_protocol.md`](docs/uart_protocol.md) | UART JSON |
+| [`docs/code/README.md`](docs/code/README.md) | Модули STM32 / ESP32, циклы, API |
+| [`docs/cubemx.md`](docs/cubemx.md) | CubeMX / HAL шпаргалка |
 | [`.cursor/plans/`](.cursor/plans/) | Архивные черновики |

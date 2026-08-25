@@ -1,1 +1,12 @@
-.DS_Store 
+.DS_Store
+stm32_cube/co2_stm32/Debug/
+stm32_cube/co2_stm32/Release/
+stm32_cube/co2_stm32/.settings/
+esp32/.pio/
+esp32/.vscode/
+graphify-out/
+*.o
+*.elf
+*.map
+*.launch
+*.code-workspace
